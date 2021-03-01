@@ -1,0 +1,22 @@
+{
+    "name": "apollo-sdk/config",
+    "description": "complete implementation of Ctrip Apollo read configuration interface",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "apollo",
+        "ctripcorp",
+        "ctrip",
+        "apollo-client"
+    ],
+    "homepage": "https://github.com/fengzhibin/apollo-sdk-config",
+    "require": {
+        "php": ">=5.6",
+        "guzzlehttp/guzzle": "^6.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "ApolloSdk\\": "src/"
+        }
+    }
+}
