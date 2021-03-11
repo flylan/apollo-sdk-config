@@ -271,7 +271,11 @@ class Client {
                                         $this->setErrorInfo = false;//关闭getConfig方法内的保存错误信息的逻辑
                                         //由于接管了getConfig方法的promise wait，通过回调函数获取返回结果
                                         $this->asyncGetResult = function($newConfig) use(
-                                            $appId, $namespaceName, &$onConfigUpdate, $notificationId
+                                            $appId,
+                                            $namespaceName,
+                                            &$onConfigUpdate,
+                                            $notificationId,
+                                            &$namespaceNotificationMapping
                                         ) {
                                             if($newConfig !== false) {
                                                 call_user_func(
@@ -279,7 +283,8 @@ class Client {
                                                     $appId,
                                                     $namespaceName,
                                                     $newConfig,
-                                                    $notificationId
+                                                    $notificationId,
+                                                    $namespaceNotificationMapping
                                                 );
                                             }
                                         };
