@@ -125,9 +125,10 @@ $client->listenMultiAppConfigUpdate(
     $appNotificationsData,
     //当某个应用的namespace更新了会触发下面这个回调函数
     //如果默认初始化应用的notificationId为-1，则每个应用在都会立即触发一次回调函数
-    function ($appId, $namespaceName, $newConfig, $notificationId) {
+    function ($appId, $namespaceName, $newConfig, $notificationId, $namespaceNotificationMapping) {
         echo date('Y-m-d H:i:s').'___'.$appId.'___'.$namespaceName.'___'.$notificationId.PHP_EOL;
         print_r($newConfig);//这个是被更新之后的配置
+        print_r($namespaceNotificationMapping);//这个是应用的namespace的notification映射列表，1.0.2版本及之后的版本提供了这个参数
         echo PHP_EOL;
     }
 );
