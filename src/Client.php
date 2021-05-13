@@ -278,13 +278,15 @@ class Client {
                                             &$namespaceNotificationMapping
                                         ) {
                                             if($newConfig !== false) {
-                                                call_user_func(
+                                                call_user_func_array(
                                                     $onConfigUpdate,
-                                                    $appId,
-                                                    $namespaceName,
-                                                    $newConfig,
-                                                    $notificationId,
-                                                    $namespaceNotificationMapping
+                                                    [
+                                                        $appId,
+                                                        $namespaceName,
+                                                        $newConfig,
+                                                        $notificationId,
+                                                        &$namespaceNotificationMapping
+                                                    ]
                                                 );
                                             }
                                         };
