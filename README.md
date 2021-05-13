@@ -1,5 +1,10 @@
 Ctrip Apollo PHP SDK
 =======================
+## 提示
+这个仓库是php库，封装阿波罗接口的具体实现，提供了批量读取接口的能力。
+如果你需要具体的阿波罗client的实现，可以参考这个仓库：https://github.com/fengzhibin/apollo-sdk-clientd
+apollo-sdk-clientd基于apollo-sdk-config，完整实现了常驻版的阿波罗客户端和业务系统接入阿波罗配置的方法
+
 ## 特性
 
 - 支持批量读取多个应用配置
@@ -133,11 +138,6 @@ $client->listenMultiAppConfigUpdate(
     }
 );
 ```
-
-## 完整例子
-参考项目：https://github.com/fengzhibin/apollo-sdk-clientd
-
-apollo-sdk-clientd实现了一个常驻运行的client，实时感知应用变更，从阿波罗配置中心拉取配置之后格式化json文件保存到指定目录下
 
 ## 备注
 如果你觉得这个项目不错，帮忙点个星星，你的支持对我来说是莫大的鼓励
