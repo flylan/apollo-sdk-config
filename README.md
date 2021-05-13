@@ -139,5 +139,8 @@ $client->listenMultiAppConfigUpdate(
 
 apollo-sdk-clientd实现了一个常驻运行的client，实时感知应用变更，从阿波罗配置中心拉取配置之后格式化json文件保存到指定目录下
 
+## 备注
+如果你觉得这个项目不错，帮忙点个星星，你的支持对我来说是莫大的鼓励
+
 
 
