@@ -137,7 +137,7 @@ $client->listenMultiAppConfigUpdate(
         echo PHP_EOL;
     },
     //监听配置变化时会进入http长连接轮询，每个接口响应的时候会触发下面这个方法
-    function ($appId, \GuzzleHttp\Psr7\Response $response) {//1.0.3版本及之后的版本新增这个回调方法
+    function ($appId, \GuzzleHttp\Psr7\Response $response) {//1.0.4版本及之后的版本新增这个回调方法
         echo '应用：'$appId.'完成一次http请求'.PHP_EOL;
         //想了解更多关于guzzle http的respone信息
         //参考这个文档https://guzzle-cn.readthedocs.io/zh_CN/latest/psr7.html#responses
