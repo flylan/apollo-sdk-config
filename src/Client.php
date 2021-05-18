@@ -217,7 +217,11 @@ class Client {
      * @author fengzhibin
      * @date 2021-02-09
      */
-    public function listenMultiAppConfigUpdate(array $appNotificationsData, $onConfigUpdate = null) {
+    public function listenMultiAppConfigUpdate(
+        array $appNotificationsData,
+        $onConfigUpdate = null,
+        $onResponse = null
+    ) {
         if(empty($appNotificationsData)) {
             return false;
         }
@@ -228,7 +232,7 @@ class Client {
         //如果被监听namespace发生配置变更（服务器会立刻响应当前请求，返回新的notificationId）
         //本地拿到新的notificationId，更新本地的映射表，然后再次发起http长轮询监听指定应用的配置更新
         $loopForConfigUpdate = function($appId, $namespaceNotificationMapping) use(
-            &$onConfigUpdate, &$loopForConfigUpdate
+            &$onConfigUpdate, &$loopForConfigUpdate, &$onResponse
         ) {
             //生成notifications
             $notifications = [];
@@ -242,8 +246,12 @@ class Client {
 
             $this->promise->then(
                 function(ResponseInterface $response) use(
-                    $appId, &$loopForConfigUpdate, &$namespaceNotificationMapping, &$onConfigUpdate
+                    $appId, &$loopForConfigUpdate, &$namespaceNotificationMapping, &$onConfigUpdate, &$onResponse
                 ) {
+                    //触发响应函数
+                    if(is_callable($onResponse)) {
+                        call_user_func_array($onResponse, [$appId, $response]);
+                    }
                     $responseCode = (int)$response->getStatusCode();
                     if((int)$responseCode === 200) {
                         $body = $response->getBody();
