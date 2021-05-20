@@ -409,7 +409,7 @@ class Client {
             return '';
         }
         $notifications = urlencode(json_encode($notifications));
-        return "{$this->configServerUrl}/notifications/v2?appId={$appId}&cluster=default&notifications={$notifications}";
+        return "{$this->configServerUrl}/notifications/v2?appId={$appId}&cluster={$this->clusterName}&notifications={$notifications}";
     }
 
     /**
