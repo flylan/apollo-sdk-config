@@ -5,6 +5,8 @@ Ctrip Apollo PHP SDK
 如果你需要具体的阿波罗client的实现，可以参考这个仓库：https://github.com/fengzhibin/apollo-sdk-clientd
 apollo-sdk-clientd基于apollo-sdk-config，完整实现了常驻版的阿波罗客户端和业务系统接入阿波罗配置的方法
 
+如果你觉得这个项目不错，帮忙点个星星，你的支持对我来说是莫大的鼓励
+
 ## 特性
 
 - 支持批量读取多个应用配置
@@ -145,9 +147,3 @@ $client->listenMultiAppConfigUpdate(
     }
 );
 ```
-
-## 备注
-如果你觉得这个项目不错，帮忙点个星星，你的支持对我来说是莫大的鼓励
-
-
-
