@@ -27,7 +27,7 @@ class Client {
     public function get($appId, $namespace, $useCacheApi = true, $releaseKey = '') {
         return $this
             ->multiGet([$appId => [$namespace => $releaseKey]], $useCacheApi)
-            ->one($appId, $namespace);
+            ->first();
     }
 
     /**
