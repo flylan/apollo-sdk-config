@@ -31,17 +31,3 @@ function is_legal_ip($ip) {
     }
     return filter_var($ip, FILTER_VALIDATE_IP);
 }
-
-/**
- * 格式化json字符串（这个函数固定返回数组）
- * @author fengzhibin
- * @return array
- * @date 2022-02-17
- */
-function _json_decode($string = '') {
-    $res = [];
-    if(!empty($string)) {
-        $res = json_decode($string, true);
-    }
-    return empty($res)?[]:(array)$res;
-}
