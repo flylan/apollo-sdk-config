@@ -124,7 +124,16 @@ class Client {
                         ) {
                             $noticeMapping[$namespace] = $newNotificationId;
                             //触发配置更新事件
-                            $this->triggerEvent(self::EVENT_CONFIG_UPDATE, [$appId, $namespace, &$noticeMapping]);
+                            $this->triggerEvent(
+                                self::EVENT_CONFIG_UPDATE,
+                                [
+                                    $appId,
+                                    $namespace,
+                                    $newNotificationId,
+                                    $oldNotificationId,
+                                    &$noticeMapping
+                                ]
+                            );
                         }
                     }
                 }
@@ -182,5 +191,14 @@ class Client {
             return call_user_func_array($this->eventCallbackList[$eventName], $eventArgs);
         }
         return null;
+    }
+
+    /**
+     * 通过client对外暴露这个方法
+     * @author fengzhibin
+     * @date 2021-03-19
+     */
+    public function checkConfigServerUrl() {
+        return $this->request->checkConfigServerUrl();
     }
 }

@@ -45,7 +45,7 @@ class Request {
         if(!empty($config['secret'])) {
             $this->secret = $config['secret'];
         }
-        $this->guzzleHttpClient = new GuzzleHttpClient();
+        $this->guzzleHttpClient = new GuzzleHttpClient(['http_errors' => false]);
     }
 
     /**
@@ -67,7 +67,7 @@ class Request {
      * @date 2022-02-24
      */
     public function get($appId, $url) {
-        $options = ['timeout' => 10, 'http_errors' => false];
+        $options = ['timeout' => 10];
         //生成请求头
         $headers = $this->buildRequestHeaders($appId, $url);
         if(!empty($headers)) {
@@ -90,7 +90,7 @@ class Request {
      * @date 2022-02-24
      */
     public function asyncGet($appId, $url, $callback = null) {
-        $options = ['timeout' => 63, 'http_errors' => false];
+        $options = ['timeout' => 63];
         //生成请求头
         $headers = $this->buildRequestHeaders($appId, $url);
         if(!empty($headers)) {
@@ -100,14 +100,14 @@ class Request {
             ->guzzleHttpClient
             ->getAsync($url, $options)
             ->then(
-                function(ResponseInterface $response) use($callback) {
+                function(ResponseInterface $response) use($callback, $appId) {
                     if(is_callable($callback)) {
-                        call_user_func($callback, $response, null, self::CALLBACK_TYPE_FULFILLED);
+                        call_user_func($callback, $appId, $response, null, self::CALLBACK_TYPE_FULFILLED);
                     }
                 },
-                function(RequestException $error) use($callback) {
+                function(RequestException $error) use($callback, $appId) {
                     if(is_callable($callback)) {
-                        call_user_func($callback, null, $error, self::CALLBACK_TYPE_REJECTED);
+                        call_user_func($callback, $appId, null, $error, self::CALLBACK_TYPE_REJECTED);
                     }
                 }
             );
@@ -200,5 +200,40 @@ class Request {
             $res[Signature::HTTP_HEADER_TIMESTAMP] = $timestamp;
         }
         return $res;
+    }
+
+    /**
+     * 检查configServerUrl是否异常，返回结果不是空字符串则代表config-server-url异常
+     * @return string
+     * @author fengzhibin
+     * @date 2022-02-24
+     */
+    public function checkConfigServerUrl() {
+        if(is_legal_url($this->configServerUrl) === false) {
+            return '阿波罗配置中心链接格式异常，不是合法的url';
+        }
+        $errorMsg = '';
+        try {
+            $response = $this
+                ->guzzleHttpClient
+                ->get($this->configServerUrl, ['timeout' => 5, 'connect_timeout' => 5]);
+            $statusCode = (int)$response->getStatusCode();
+            $defaultStatusCode = 404;
+            if($statusCode !== $defaultStatusCode) {
+                $errorMsg = "http状态码为{$statusCode}，配置中心根接口的状态码应该为{$defaultStatusCode}，请检查阿波罗配置中心链接";
+            } else {
+                $jsonDecodeBody = [];
+                $body = (string)$response->getBody();
+                if(!empty($body)) {
+                    $jsonDecodeBody = json_decode($body, true);
+                }
+                if(!isset($jsonDecodeBody['status'])) {
+                    $errorMsg = '接口返回数据中没有status字段，原始内容为：'.$body;
+                }
+            }
+        } catch (\Exception $e) {
+            $errorMsg = $e->getMessage();
+        }
+        return $errorMsg;
     }
 }
