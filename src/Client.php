@@ -1,6 +1,8 @@
 <?php
 namespace ApolloSdk\Config;
 
+use Psr\Http\Message\ResponseInterface;
+
 class Client {
     const EVENT_CONFIG_UPDATE = 'config_update';
     const EVENT_HTTP_RESPONE = 'http_respone';
@@ -18,20 +20,20 @@ class Client {
      * @param string $namespace Namespace的名字
      * @param bool $useCacheApi 是否通过带缓存的Http接口从Apollo读取配置，设置为false可以使用不带缓存的Http接口从Apollo读取配置
      * @param string $releaseKey 上一次的releaseKey
-     * @return array
+     * @return ConfigsContainer
      * @author fengzhibin
      * @date 2021-02-18
      */
     public function get($appId, $namespace, $useCacheApi = true, $releaseKey = '') {
-        $res = $this->multiGet([$appId => [$namespace => $releaseKey]], $useCacheApi);
-        return empty($res[$appId][$namespace])?[]:$res[$appId][$namespace];
+        return $this
+            ->multiGet([$appId => [$namespace => $releaseKey]], $useCacheApi)
+            ->one($appId, $namespace);
     }
 
     /**
      * 监听单个应用配置变化
      * @param string $appId 应用的appId
      * @param array $noticeMapping notificationId映射信息，结构为[namespace] => notificationId
-     * @return mixed
      * @author fengzhibin
      * @date 2021-02-18
      */
@@ -46,30 +48,31 @@ class Client {
      * 读取多个应用配置
      * @param array $appReleaseMapping 多个应用的releaseKey映射信息，结构为[appid][namespace] => releaseKey
      * @param boolean $useCacheApi
-     * @return mixed
+     * @return ConfigsListContainer
      * @author fengzhibin
      * @date 2021-02-18
      */
     public function multiGet($appReleaseMapping, $useCacheApi = true) {
+        $list = new ConfigsListContainer();
         if(empty($appReleaseMapping)) {
-            return false;
+            return $list;
         }
-        $res = [];
         foreach($appReleaseMapping as $appId => &$value) {
             foreach($value as $namespace => &$releaseKey) {
-                $configData = $this->request->get(
+                $url = $this->request->buildUrl(
                     $appId,
                     ['namespace' => $namespace, 'use_cache_api' => $useCacheApi, 'release_key' => $releaseKey]
                 );
-                $configData = _json_decode($configData);
-                if($useCacheApi === true) {
-                    $res[$appId][$namespace] = $configData;
-                } else {
-                    $res[$appId][$namespace] = !empty($configData['configurations'])?$configData['configurations']:[];
-                }
+                $list->add([
+                    'app_id' => $appId,
+                    'namespace' => $namespace,
+                    'use_cache_api' => $useCacheApi,
+                    'cluster_name' => $this->request->getClusterName(),
+                    'response' => $this->request->get($appId, $url)
+                ]);
             }
         }
-        return $res;
+        return $list;
     }
 
     /**
@@ -94,10 +97,17 @@ class Client {
                 ];
             }
             //异步请求回调
-            $asyncCallback = function ($appId, $responeData) use(&$loopForUpdate, $noticeMapping, $appNoticeMapping) {
+            $asyncCallback = function($appId, $response) use(&$loopForUpdate, $noticeMapping) {
+                //响应数据
+                $responeData = [];
+                if($response instanceof ResponseInterface) {
+                    $responeData = (string)$response->getBody()->getContents();
+                    if(!empty($responeData)) {
+                        $responeData = (array)json_decode($responeData, true);
+                    }
+                }
                 //触发响应事件
                 $this->triggerEvent(self::EVENT_HTTP_RESPONE, [$appId, $responeData]);
-                $responeData = _json_decode($responeData);
                 if(!empty($responeData)) {
                     foreach($responeData as &$value) {
                         $newNotificationId = (int)$value['notificationId'];//新的notificationId
@@ -113,31 +123,19 @@ class Client {
                             $oldNotificationId !== $newNotificationId//新旧notificationId不同
                         ) {
                             $noticeMapping[$namespace] = $newNotificationId;
-                            //是否初始化配置
-                            $isInit = $oldNotificationId === $appNoticeMapping[$appId][$namespace]?true:false;
                             //触发配置更新事件
-                            $this->triggerEvent(
-                                self::EVENT_CONFIG_UPDATE,
-                                [
-                                    $appId,
-                                    $namespace,
-                                    $isInit,
-                                    &$noticeMapping,
-                                ]
-                            );
+                            $this->triggerEvent(self::EVENT_CONFIG_UPDATE, [$appId, $namespace, &$noticeMapping]);
                         }
                     }
                 }
                 //继续监听当前应用
                 $loopForUpdate($appId, $noticeMapping);
             };
-            //发起异步请求
-            $this->request->get(
-                $appId,
-                ['notifications' => $notifications],
-                REQUEST::API_NAME_AWARE_CONFIG_UPDATE,
-                $asyncCallback
+            $url = $this->request->buildUrl(
+                $appId, ['notifications' => $notifications], REQUEST::API_NAME_AWARE_CONFIG_UPDATE
             );
+            //发起异步请求
+            $this->request->asyncGet($appId, $url, $asyncCallback);
         };
 
         do {

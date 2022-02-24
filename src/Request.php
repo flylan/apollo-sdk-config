@@ -1,15 +1,25 @@
 <?php
 namespace ApolloSdk\Config;
 
+use GuzzleHttp\Client as GuzzleHttpClient;
+use Psr\Http\Message\ResponseInterface;
+use GuzzleHttp\Exception\RequestException;
+use GuzzleHttp\Promise\PromiseInterface;
+
 class Request {
     const API_NAME_GET_CONFIG = 'get_config';//通过（不）带缓存的Http接口从Apollo读取配置
     const API_NAME_AWARE_CONFIG_UPDATE = 'aware_config_update';//应用感知配置更新
+
+    const CALLBACK_TYPE_FULFILLED = 'fulfilled';
+    const CALLBACK_TYPE_REJECTED = 'rejected';
 
     private $configServerUrl = '';
     private $clientIp = '';
     private $clusterName = 'default';
     private $secret = '';
-    private $httpDrive;
+
+    private $guzzleHttpClient;
+    private $promise;
 
     public function __construct($config) {
         //配置中心地址
@@ -35,53 +45,85 @@ class Request {
         if(!empty($config['secret'])) {
             $this->secret = $config['secret'];
         }
-        $this->httpDrive = new HttpDrive\Guzzle();
+        $this->guzzleHttpClient = new GuzzleHttpClient();
     }
 
     /**
-     * 发起http get请求
-     * @param string $appId 应用的appId
+     * 获取集群名称
      * @return string
      * @author fengzhibin
-     * @date 2021-02-22
+     * @date 2022-02-24
      */
-    public function get($appId, $requestData = [], $apiName = self::API_NAME_GET_CONFIG, $asyncCallback = null) {
-        //请求超时
-        $timeout = 10;
-        if($apiName === self::API_NAME_AWARE_CONFIG_UPDATE) {
-            $timeout = 63;
-        }
-        $url = $this->buildUrl($appId, $requestData, $apiName);
-        $options = ['timeout' => $timeout, 'http_errors' => false];
+    public function getClusterName() {
+        return $this->clusterName;
+    }
+
+    /**
+     * 发起http同步get请求
+     * @param string $appId 应用的appId
+     * @param string $url 请求链接
+     * @return null|ResponseInterface
+     * @author fengzhibin
+     * @date 2022-02-24
+     */
+    public function get($appId, $url) {
+        $options = ['timeout' => 10, 'http_errors' => false];
         //生成请求头
         $headers = $this->buildRequestHeaders($appId, $url);
         if(!empty($headers)) {
             $options['headers'] = $headers;
         }
         try {
-            if(!is_callable($asyncCallback)) {//同步请求
-                return $this->httpDrive->get($url, $options);
-            }
-            //异步请求
-            return $this->httpDrive->asyncGet(
-                $url,
-                $options,
-                function($responseData = '') use($appId, $asyncCallback) {
-                    call_user_func_array($asyncCallback, [$appId, $responseData]);
+            return $this->guzzleHttpClient->get($url, $options);
+        } catch (\Exception $e) {
+            return null;
+        }
+    }
+
+    /**
+     * 发起http异步get请求
+     * @param string $appId 应用的appId
+     * @param string $url 请求链接
+     * @param mixed $callback 异步回调函数
+     * @return PromiseInterface
+     * @author fengzhibin
+     * @date 2022-02-24
+     */
+    public function asyncGet($appId, $url, $callback = null) {
+        $options = ['timeout' => 63, 'http_errors' => false];
+        //生成请求头
+        $headers = $this->buildRequestHeaders($appId, $url);
+        if(!empty($headers)) {
+            $options['headers'] = $headers;
+        }
+        return $this->promise = $this
+            ->guzzleHttpClient
+            ->getAsync($url, $options)
+            ->then(
+                function(ResponseInterface $response) use($callback) {
+                    if(is_callable($callback)) {
+                        call_user_func($callback, $response, null, self::CALLBACK_TYPE_FULFILLED);
+                    }
+                },
+                function(RequestException $error) use($callback) {
+                    if(is_callable($callback)) {
+                        call_user_func($callback, null, $error, self::CALLBACK_TYPE_REJECTED);
+                    }
                 }
             );
-        } catch (\Exception $e) {
-            return '';
-        }
     }
 
     /**
      * 等待异步请求完成
      * @author fengzhibin
+     * @return mixed
      * @date 2021-02-22
      */
     public function wait() {
-        return $this->httpDrive->wait();
+        if($this->promise instanceof PromiseInterface) {
+            return $this->promise->wait();
+        }
+        return false;
     }
 
     /**
@@ -91,7 +133,7 @@ class Request {
      * @author fengzhibin
      * @date 2021-02-22
      */
-    private function buildUrl($appId, $requestData = [], $apiName = self::API_NAME_GET_CONFIG) {
+    public function buildUrl($appId, $requestData = [], $apiName = self::API_NAME_GET_CONFIG) {
         $url = '';
         if(empty($appId)) {
             return $url;
@@ -140,7 +182,7 @@ class Request {
      * @author fengzhibin
      * @date 2022-02-16
      */
-    private function buildRequestHeaders($appId, $url) {
+    public function buildRequestHeaders($appId, $url) {
         $res = [];
         if(empty($appId) || empty($this->secret)) {
             return $res;
