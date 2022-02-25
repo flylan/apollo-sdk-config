@@ -6,6 +6,9 @@ class Format {
     const MAPPING_TYPE_NOTICE = 'notice';
     const MAPPING_TYPE_RELEASE = 'release';
 
+    const DEFAULT_NOTIFICATION_ID = -1;
+    const DEFAULT_RELEASE_KEY = '';
+
     /**
      * 构建notificationId映射信息
      * @param array $namespaceList namespace列表
@@ -37,13 +40,14 @@ class Format {
      * @date 2022-02-14
      */
     private static function toMapping(&$namespaceList, $mappingType = self::MAPPING_TYPE_NOTICE) {
-        $defaultValue = -1;
-        if($mappingType === self::MAPPING_TYPE_RELEASE) {
-            $defaultValue = '';
-        }
         $noticeMapping = [];
         if(empty($namespaceList)) {
             return $noticeMapping;
+        }
+        //默认值
+        $defaultValue = self::DEFAULT_NOTIFICATION_ID;
+        if($mappingType === self::MAPPING_TYPE_RELEASE) {
+            $defaultValue = self::DEFAULT_RELEASE_KEY;
         }
         foreach($namespaceList as &$namespace) {
             $noticeMapping[$namespace] = $defaultValue;

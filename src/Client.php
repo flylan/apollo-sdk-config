@@ -93,14 +93,6 @@ class Client {
 
         //监听单个应用
         $loopForUpdate = function($appId, &$noticeMapping) use(&$loopForUpdate, $appNoticeMapping) {
-            //生成用于请求应用感知配置更新接口的notifications数据结构
-            $notifications = [];
-            foreach($noticeMapping as $namespace => &$notificationId) {
-                $notifications[] = [
-                    'notificationId' => $notificationId,
-                    'namespaceName' => $namespace
-                ];
-            }
             //异步请求回调
             $asyncCallback = function($appId, $response) use(&$loopForUpdate, $noticeMapping) {
                 //响应数据
@@ -145,6 +137,14 @@ class Client {
                 //继续监听当前应用
                 $loopForUpdate($appId, $noticeMapping);
             };
+            //生成用于请求应用感知配置更新接口的notifications数据结构
+            $notifications = [];
+            foreach($noticeMapping as $namespace => &$notificationId) {
+                $notifications[] = [
+                    'notificationId' => $notificationId,
+                    'namespaceName' => $namespace
+                ];
+            }
             $url = $this->request->buildUrl(
                 $appId, ['notifications' => $notifications], REQUEST::API_NAME_AWARE_CONFIG_UPDATE
             );
