@@ -2,11 +2,18 @@
 namespace ApolloSdk\Config;
 use Psr\Http\Message\ResponseInterface;
 
+/**
+ * @method string getAppId()
+ * @method string getNamespaceName()
+ * @method string getCluster()
+ * @method string getHttpStatusCode()
+ * @method string getRawData()
+ */
 class ConfigsContainer {
     private $appId = '';
-    private $namespace = '';
-    private $clusterName = '';
-    private $useCacheApi = true;
+    private $cluster = '';
+    private $namespaceName = '';
+    private $useCacheApi = false;
     private $rawData = '';
     private $httpStatusCode = 0;
 
@@ -14,11 +21,11 @@ class ConfigsContainer {
         if(isset($item['app_id'])) {
             $this->appId = (string)$item['app_id'];
         }
-        if(isset($item['namespace'])) {
-            $this->namespace = (string)$item['namespace'];
-        }
         if(isset($item['cluster_name'])) {
-            $this->clusterName = (string)$item['cluster_name'];
+            $this->cluster = (string)$item['cluster_name'];
+        }
+        if(isset($item['namespace'])) {
+            $this->namespaceName = (string)$item['namespace'];
         }
         if(isset($item['use_cache_api'])) {
             $this->useCacheApi = (bool)$item['use_cache_api'];
@@ -33,24 +40,34 @@ class ConfigsContainer {
         }
     }
 
-    public function getAppId() {
-        return $this->appId;
-        //return $this->getValueFromRawData('appId');
+    /**
+     * 通过魔术方法调用getXXX
+     * @param string $name 方面名称
+     * @param array $arguments 参数
+     * @return mixed
+     * @author fengzhibin
+     * @date 2022-02-25
+     */
+    public function __call($name, $arguments) {
+        if(substr($name, 0, 3) === 'get') {
+            $key = lcfirst(substr($name, 3));
+            if(property_exists($this, $key)) {
+                return $this->$key;
+            }
+        }
+        throw new \Exception("No such method exists: {$name}");
     }
 
-    public function getNamespaceName() {
-        return $this->namespace;
-        //return $this->getValueFromRawData('namespaceName');
-    }
-
-    public function getCluster() {
-        return $this->clusterName;
-        //return $this->getValueFromRawData('cluster');
-    }
-
+    /**
+     * 读取configurations
+     * @param bool $toArray 是否转换为数组格式
+     * @return string|array
+     * @author fengzhibin
+     * @date 2022-02-25
+     */
     public function getConfigurations($toArray = true) {
         if($this->useCacheApi === false) {
-            $res = $this->getValueFromRawData('configurations');
+            $res = $this->getRawDataKeyValue('configurations');
         } else {
             $res = $this->getRawData();
         }
@@ -60,21 +77,26 @@ class ConfigsContainer {
         return $this->toString($res);
     }
 
+    /**
+     * 读取releaseKey
+     * @return string
+     * @author fengzhibin
+     * @date 2022-02-25
+     */
     public function getReleaseKey() {
-        return $this->getValueFromRawData('releaseKey');
+        return (string)$this->getRawDataKeyValue('releaseKey');
     }
 
-    public function getHttpStatusCode() {
-        return (int)$this->httpStatusCode;
-    }
-
-    public function getRawData() {
-        return (string)$this->rawData;
-    }
-
+    /**
+     * 将结果转换为数组格式
+     * @param null|string|array $rawData 待转换的数据，默认自行读取$this->rawData
+     * @return array
+     * @author fengzhibin
+     * @date 2022-02-25
+     */
     public function toArray($rawData = null) {
         if(is_null($rawData)) {
-            $rawData = $this->rawData;
+            $rawData = $this->getRawData();
         }
         if(empty($rawData)) {
             return [];
@@ -85,9 +107,16 @@ class ConfigsContainer {
         return (array)json_decode($rawData, true);
     }
 
+    /**
+     * 将结果转换为字符串格式
+     * @param null|string|array $rawData 待转换的数据，默认自行读取$this->rawData
+     * @return string
+     * @author fengzhibin
+     * @date 2022-02-25
+     */
     public function toString($rawData = null) {
         if(is_null($rawData)) {
-            $rawData = $this->rawData;
+            $rawData = $this->getRawData();
         }
         if(empty($rawData)) {
             return '';
@@ -98,7 +127,15 @@ class ConfigsContainer {
         return (string)json_encode($rawData);
     }
 
-    private function getValueFromRawData($key, $default = '') {
+    /**
+     * 从原始数据中读取键的值
+     * @param string $key 键名
+     * @param mixed $default 当键不存在时默认返回的值
+     * @return mixed
+     * @author fengzhibin
+     * @date 2022-02-25
+     */
+    private function getRawDataKeyValue($key, $default = '') {
         if(empty($key)) {
             return $default;
         }

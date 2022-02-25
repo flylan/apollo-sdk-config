@@ -25,9 +25,14 @@ class Client {
      * @date 2021-02-18
      */
     public function get($appId, $namespace, $useCacheApi = true, $releaseKey = '') {
-        return $this
+        $res = $this
             ->multiGet([$appId => [$namespace => $releaseKey]], $useCacheApi)
             ->first();
+        //固定返回ConfigsContainer，防止上层直接使用->get()->getXXXX()报错
+        if(!($res instanceof ConfigsContainer)) {
+            return new ConfigsContainer();
+        }
+        return $res;
     }
 
     /**
