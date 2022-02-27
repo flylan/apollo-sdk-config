@@ -16,7 +16,7 @@ class Request {
     private $configServerUrl = '';
     private $clientIp = '';
     private $clusterName = 'default';
-    private $secret = '';
+    private $secret;
 
     private $guzzleHttpClient;
     private $promise;
@@ -42,7 +42,13 @@ class Request {
             $this->clusterName = $config['cluster_name'];
         }
         //密钥
-        if(!empty($config['secret'])) {
+        if(
+            !empty($config['secret']) &&
+            (
+                is_string($config['secret']) ||
+                is_array($config['secret'])
+            )
+        ) {
             $this->secret = $config['secret'];
         }
         $this->guzzleHttpClient = new GuzzleHttpClient(['http_errors' => false]);
@@ -183,8 +189,20 @@ class Request {
      * @date 2022-02-16
      */
     public function buildRequestHeaders($appId, $url) {
+        //获取密钥
+        $secret = '';
+        if(!empty($this->secret)) {
+            if(is_string($this->secret)) {//如果secret为字符串格式
+                $secret = $this->secret;
+            } elseif(//多应用下配置secret格式 [$appId] => secret
+                is_array($this->secret) &&
+                !empty($this->secret[$appId])
+            ) {
+                $secret = $this->secret[$appId];
+            }
+        }
         $res = [];
-        if(empty($appId) || empty($this->secret)) {
+        if(empty($appId) || empty($secret)) {
             return $res;
         }
         $timestamp = time() * 1000;
@@ -195,7 +213,7 @@ class Request {
                 $pathWithQuery .= '?'.$urlInfo['query'];
             }
             $res[Signature::HTTP_HEADER_AUTHORIZATION] = Signature::getAuthorizationString(
-                $appId, $timestamp, $pathWithQuery, $this->secret
+                $appId, $timestamp, $pathWithQuery, $secret
             );
             $res[Signature::HTTP_HEADER_TIMESTAMP] = $timestamp;
         }
