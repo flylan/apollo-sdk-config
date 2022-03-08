@@ -6,20 +6,20 @@ use Psr\Http\Message\ResponseInterface;
 use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Promise\PromiseInterface;
 
+/**
+ * @method string getConfigServerUrl()
+ * @method string getClientIp()
+ * @method string getClusterName()
+ * @method string getSecret()
+ */
 class Request {
     const API_NAME_GET_CONFIG = 'get_config';//通过（不）带缓存的Http接口从Apollo读取配置
     const API_NAME_AWARE_CONFIG_UPDATE = 'aware_config_update';//应用感知配置更新
-
-    const CALLBACK_TYPE_FULFILLED = 'fulfilled';
-    const CALLBACK_TYPE_REJECTED = 'rejected';
 
     private $configServerUrl = '';
     private $clientIp = '';
     private $clusterName = 'default';
     private $secret;
-
-    private $guzzleHttpClient;
-    private $promise;
 
     public function __construct($config) {
         //配置中心地址
@@ -51,72 +51,54 @@ class Request {
         ) {
             $this->secret = $config['secret'];
         }
-        $this->guzzleHttpClient = new GuzzleHttpClient(['http_errors' => false]);
     }
 
     /**
-     * 获取集群名称
-     * @return string
+     * 通过魔术方法调用getXXX
+     * @param string $name 方面名称
+     * @param array $arguments 参数
+     * @return mixed
      * @author fengzhibin
-     * @date 2022-02-24
+     * @date 2022-02-25
      */
-    public function getClusterName() {
-        return $this->clusterName;
+    public function __call($name, $arguments) {
+        if(substr($name, 0, 3) === 'get') {
+            $key = lcfirst(substr($name, 3));
+            if(property_exists($this, $key)) {
+                return $this->$key;
+            }
+        }
+        throw new \Exception("No such method exists: {$name}");
     }
 
     /**
-     * 发起http同步get请求
+     * 发起http同步（异步）get请求
+     * @param string $apiName api名字，参数API_NAME_XXX常量
      * @param string $appId 应用的appId
-     * @param string $url 请求链接
-     * @return null|ResponseInterface
+     * @param array $requestData 请求数据
+     * @param callable $callback promise被实现或者被拒绝时调用
+     * @return ResponseInterface|PromiseInterface
+     * @throws \Exception
      * @author fengzhibin
      * @date 2022-02-24
      */
-    public function get($appId, $url) {
-        $options = ['timeout' => 10];
+    public function get($apiName, $appId, array $requestData = [], callable $callback = null) {
+        $timeout = 10;//默认为10秒请求时间
+        if($apiName === self::API_NAME_AWARE_CONFIG_UPDATE) {
+            $timeout = 63;
+        }
+        $options = ['timeout' => $timeout];
+        //请求链接
+        $url = $this->buildUrl($appId, $requestData);
         //生成请求头
         $headers = $this->buildRequestHeaders($appId, $url);
         if(!empty($headers)) {
             $options['headers'] = $headers;
         }
-        try {
-            return $this->guzzleHttpClient->get($url, $options);
-        } catch (\Exception $e) {
-            return null;
+        if(is_null($callback)) {
+            return Guzzle::get($url, $options);
         }
-    }
-
-    /**
-     * 发起http异步get请求
-     * @param string $appId 应用的appId
-     * @param string $url 请求链接
-     * @param mixed $callback 异步回调函数
-     * @return PromiseInterface
-     * @author fengzhibin
-     * @date 2022-02-24
-     */
-    public function asyncGet($appId, $url, $callback = null) {
-        $options = ['timeout' => 63];
-        //生成请求头
-        $headers = $this->buildRequestHeaders($appId, $url);
-        if(!empty($headers)) {
-            $options['headers'] = $headers;
-        }
-        return $this->promise = $this
-            ->guzzleHttpClient
-            ->getAsync($url, $options)
-            ->then(
-                function(ResponseInterface $response) use($callback, $appId) {
-                    if(is_callable($callback)) {
-                        call_user_func($callback, $appId, $response, null, self::CALLBACK_TYPE_FULFILLED);
-                    }
-                },
-                function(RequestException $error) use($callback, $appId) {
-                    if(is_callable($callback)) {
-                        call_user_func($callback, $appId, null, $error, self::CALLBACK_TYPE_REJECTED);
-                    }
-                }
-            );
+        return Guzzle::getAsync($url, $options, $callback);
     }
 
     /**
@@ -126,10 +108,7 @@ class Request {
      * @date 2021-02-22
      */
     public function wait() {
-        if($this->promise instanceof PromiseInterface) {
-            return $this->promise->wait();
-        }
-        return false;
+        return Guzzle::wait();
     }
 
     /**
@@ -139,7 +118,7 @@ class Request {
      * @author fengzhibin
      * @date 2021-02-22
      */
-    public function buildUrl($appId, $requestData = [], $apiName = self::API_NAME_GET_CONFIG) {
+    private function buildUrl($appId, $requestData = [], $apiName = self::API_NAME_GET_CONFIG) {
         $url = '';
         if(empty($appId)) {
             return $url;
@@ -188,7 +167,7 @@ class Request {
      * @author fengzhibin
      * @date 2022-02-16
      */
-    public function buildRequestHeaders($appId, $url) {
+    private function buildRequestHeaders($appId, $url) {
         //获取密钥
         $secret = '';
         if(!empty($this->secret)) {
@@ -218,40 +197,5 @@ class Request {
             $res[Signature::HTTP_HEADER_TIMESTAMP] = $timestamp;
         }
         return $res;
-    }
-
-    /**
-     * 检查configServerUrl是否异常，返回结果不是空字符串则代表config-server-url异常
-     * @return string
-     * @author fengzhibin
-     * @date 2022-02-24
-     */
-    public function checkConfigServerUrl() {
-        if(is_legal_url($this->configServerUrl) === false) {
-            return '阿波罗配置中心链接格式异常，不是合法的url';
-        }
-        $errorMsg = '';
-        try {
-            $response = $this
-                ->guzzleHttpClient
-                ->get($this->configServerUrl, ['timeout' => 5, 'connect_timeout' => 5]);
-            $statusCode = (int)$response->getStatusCode();
-            $defaultStatusCode = 404;
-            if($statusCode !== $defaultStatusCode) {
-                $errorMsg = "http状态码为{$statusCode}，配置中心根接口的状态码应该为{$defaultStatusCode}，请检查阿波罗配置中心链接";
-            } else {
-                $jsonDecodeBody = [];
-                $body = (string)$response->getBody();
-                if(!empty($body)) {
-                    $jsonDecodeBody = json_decode($body, true);
-                }
-                if(!isset($jsonDecodeBody['status'])) {
-                    $errorMsg = '接口返回数据中没有status字段，原始内容为：'.$body;
-                }
-            }
-        } catch (\Exception $e) {
-            $errorMsg = $e->getMessage();
-        }
-        return $errorMsg;
     }
 }

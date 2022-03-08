@@ -64,7 +64,8 @@ class Client {
         }
         foreach($appReleaseMapping as $appId => &$value) {
             foreach($value as $namespace => &$releaseKey) {
-                $url = $this->request->buildUrl(
+                $response = $this->request->get(
+                    Request::API_NAME_GET_CONFIG,
                     $appId,
                     ['namespace' => $namespace, 'use_cache_api' => $useCacheApi, 'release_key' => $releaseKey]
                 );
@@ -73,7 +74,7 @@ class Client {
                     'namespace' => $namespace,
                     'use_cache_api' => $useCacheApi,
                     'cluster_name' => $this->request->getClusterName(),
-                    'response' => $this->request->get($appId, $url)
+                    'response' => $response instanceof ResponseInterface?$response:null
                 ]);
             }
         }
@@ -94,7 +95,7 @@ class Client {
         //监听单个应用
         $loopForUpdate = function($appId, &$noticeMapping) use(&$loopForUpdate, $appNoticeMapping) {
             //异步请求回调
-            $asyncCallback = function($appId, $response) use(&$loopForUpdate, $noticeMapping) {
+            $callback = function($appId, $response) use(&$loopForUpdate, $noticeMapping) {
                 //响应数据
                 $responeData = [];
                 if($response instanceof ResponseInterface) {
@@ -145,11 +146,10 @@ class Client {
                     'namespaceName' => $namespace
                 ];
             }
-            $url = $this->request->buildUrl(
-                $appId, ['notifications' => $notifications], REQUEST::API_NAME_AWARE_CONFIG_UPDATE
-            );
             //发起异步请求
-            $this->request->asyncGet($appId, $url, $asyncCallback);
+            $this->request->get(
+                REQUEST::API_NAME_AWARE_CONFIG_UPDATE, $appId, ['notifications' => $notifications], $callback
+            );
         };
 
         do {
@@ -199,11 +199,33 @@ class Client {
     }
 
     /**
-     * 通过client对外暴露这个方法
+     * 检查url链接是否为合法的阿波罗配置中心地址
+     * @param string $configServerUrl url链接
      * @author fengzhibin
      * @date 2021-03-19
      */
-    public function checkConfigServerUrl() {
-        return $this->request->checkConfigServerUrl();
+    public static function checkConfigServerUrl($url) {
+        try {
+            if(is_legal_url($url) === false) {
+                throw new \Exception('阿波罗配置中心链接格式异常，不是合法的url');
+            }
+            $response = Guzzle::get($url, ['timeout' => 5, 'connect_timeout' => 5]);
+            $statusCode = (int)$response->getStatusCode();
+            $defaultStatusCode = 404;
+            if($statusCode !== $defaultStatusCode) {
+                throw new \Exception("配置中心根接口的状态码应该为{$defaultStatusCode}而不是当前{$statusCode}，请检查阿波罗配置中心链接");
+            }
+            $jsonDecodeBody = [];
+            $body = (string)$response->getBody()->getContents();
+            if(!empty($body)) {
+                $jsonDecodeBody = json_decode($body, true);
+            }
+            if(!isset($jsonDecodeBody['status'])) {
+                throw new \Exception("接口返回数据中没有status字段，原始内容为：{$body}");
+            }
+        } catch (\Exception $e) {
+            throw new \Exception($e->getMessage());
+        }
+        return true;
     }
 }
