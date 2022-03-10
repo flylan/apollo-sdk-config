@@ -1,5 +1,5 @@
 <?php
-namespace ApolloSdk\Config;
+namespace ApolloSdk\Config\HttpDriver;
 
 use GuzzleHttp\Client;
 use Psr\Http\Message\ResponseInterface;

@@ -1,8 +1,6 @@
 <?php
 namespace ApolloSdk\Config;
 
-use Psr\Http\Message\ResponseInterface;
-
 class Client {
     const EVENT_CONFIG_UPDATE = 'config_update';
     const EVENT_HTTP_RESPONE = 'http_respone';
@@ -20,7 +18,7 @@ class Client {
      * @param string $namespace Namespace的名字
      * @param bool $useCacheApi 是否通过带缓存的Http接口从Apollo读取配置，设置为false可以使用不带缓存的Http接口从Apollo读取配置
      * @param string $releaseKey 上一次的releaseKey
-     * @return ConfigsContainer
+     * @return Container\Configs
      * @author fengzhibin
      * @date 2021-02-18
      */
@@ -29,8 +27,8 @@ class Client {
             ->multiGet([$appId => [$namespace => $releaseKey]], $useCacheApi)
             ->first();
         //固定返回ConfigsContainer，防止上层直接使用->get()->getXXXX()报错
-        if(!($res instanceof ConfigsContainer)) {
-            return new ConfigsContainer();
+        if(!($res instanceof Container\Configs)) {
+            return new Container\Configs();
         }
         return $res;
     }
@@ -53,28 +51,27 @@ class Client {
      * 读取多个应用配置
      * @param array $appReleaseMapping 多个应用的releaseKey映射信息，结构为[appid][namespace] => releaseKey
      * @param boolean $useCacheApi
-     * @return ConfigsListContainer
+     * @return Container\ConfigsList
      * @author fengzhibin
      * @date 2021-02-18
      */
     public function multiGet($appReleaseMapping, $useCacheApi = true) {
-        $list = new ConfigsListContainer();
+        $list = new Container\ConfigsList();
         if(empty($appReleaseMapping)) {
             return $list;
         }
         foreach($appReleaseMapping as $appId => &$value) {
             foreach($value as $namespace => &$releaseKey) {
-                $response = $this->request->get(
-                    Request::API_NAME_GET_CONFIG,
-                    $appId,
-                    ['namespace' => $namespace, 'use_cache_api' => $useCacheApi, 'release_key' => $releaseKey]
-                );
                 $list->add([
                     'app_id' => $appId,
-                    'namespace' => $namespace,
+                    'namespace_name' => $namespace,
                     'use_cache_api' => $useCacheApi,
-                    'cluster_name' => $this->request->getClusterName(),
-                    'response' => $response instanceof ResponseInterface?$response:null
+                    'cluster' => $this->request->getClusterName(),
+                    'response' => $this->request->get(
+                        Request::API_NAME_GET_CONFIG,
+                        $appId,
+                        ['namespace' => $namespace, 'use_cache_api' => $useCacheApi, 'release_key' => $releaseKey]
+                    )
                 ]);
             }
         }
@@ -98,7 +95,7 @@ class Client {
             $callback = function($appId, $response) use(&$loopForUpdate, $noticeMapping) {
                 //响应数据
                 $responeData = [];
-                if($response instanceof ResponseInterface) {
+                if($response instanceof \Psr\Http\Message\ResponseInterface) {
                     $responeData = (string)$response->getBody()->getContents();
                     if(!empty($responeData)) {
                         $responeData = (array)json_decode($responeData, true);
@@ -124,13 +121,7 @@ class Client {
                             //触发配置更新事件
                             $this->triggerEvent(
                                 self::EVENT_CONFIG_UPDATE,
-                                [
-                                    $appId,
-                                    $namespace,
-                                    $newNotificationId,
-                                    $oldNotificationId,
-                                    &$noticeMapping
-                                ]
+                                [$appId, $namespace, $newNotificationId, $oldNotificationId, &$noticeMapping]
                             );
                         }
                     }
@@ -148,7 +139,10 @@ class Client {
             }
             //发起异步请求
             $this->request->get(
-                REQUEST::API_NAME_AWARE_CONFIG_UPDATE, $appId, ['notifications' => $notifications], $callback
+                REQUEST::API_NAME_AWARE_CONFIG_UPDATE,
+                $appId,
+                ['notifications' => $notifications],
+                $callback
             );
         };
 
@@ -196,36 +190,5 @@ class Client {
             return call_user_func_array($this->eventCallbackList[$eventName], $eventArgs);
         }
         return null;
-    }
-
-    /**
-     * 检查url链接是否为合法的阿波罗配置中心地址
-     * @param string $configServerUrl url链接
-     * @author fengzhibin
-     * @date 2021-03-19
-     */
-    public static function checkConfigServerUrl($url) {
-        try {
-            if(is_legal_url($url) === false) {
-                throw new \Exception('阿波罗配置中心链接格式异常，不是合法的url');
-            }
-            $response = Guzzle::get($url, ['timeout' => 5, 'connect_timeout' => 5]);
-            $statusCode = (int)$response->getStatusCode();
-            $defaultStatusCode = 404;
-            if($statusCode !== $defaultStatusCode) {
-                throw new \Exception("配置中心根接口的状态码应该为{$defaultStatusCode}而不是当前{$statusCode}，请检查阿波罗配置中心链接");
-            }
-            $jsonDecodeBody = [];
-            $body = (string)$response->getBody()->getContents();
-            if(!empty($body)) {
-                $jsonDecodeBody = json_decode($body, true);
-            }
-            if(!isset($jsonDecodeBody['status'])) {
-                throw new \Exception("接口返回数据中没有status字段，原始内容为：{$body}");
-            }
-        } catch (\Exception $e) {
-            throw new \Exception($e->getMessage());
-        }
-        return true;
     }
 }

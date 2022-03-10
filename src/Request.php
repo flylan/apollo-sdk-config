@@ -1,10 +1,9 @@
 <?php
 namespace ApolloSdk\Config;
 
-use GuzzleHttp\Client as GuzzleHttpClient;
 use Psr\Http\Message\ResponseInterface;
-use GuzzleHttp\Exception\RequestException;
 use GuzzleHttp\Promise\PromiseInterface;
+
 
 /**
  * @method string getConfigServerUrl()
@@ -77,28 +76,31 @@ class Request {
      * @param string $appId 应用的appId
      * @param array $requestData 请求数据
      * @param callable $callback promise被实现或者被拒绝时调用
-     * @return ResponseInterface|PromiseInterface
-     * @throws \Exception
+     * @return null|ResponseInterface|PromiseInterface
      * @author fengzhibin
      * @date 2022-02-24
      */
     public function get($apiName, $appId, array $requestData = [], callable $callback = null) {
-        $timeout = 10;//默认为10秒请求时间
-        if($apiName === self::API_NAME_AWARE_CONFIG_UPDATE) {
-            $timeout = 63;
+        try {
+            $timeout = 10;//默认为10秒请求时间
+            if($apiName === self::API_NAME_AWARE_CONFIG_UPDATE) {
+                $timeout = 63;
+            }
+            $options = ['timeout' => $timeout];
+            //请求链接
+            $url = $this->buildUrl($appId, $requestData);
+            //生成请求头
+            $headers = $this->buildRequestHeaders($appId, $url);
+            if(!empty($headers)) {
+                $options['headers'] = $headers;
+            }
+            if(is_null($callback)) {
+                return HttpDriver\Guzzle::get($url, $options);
+            }
+            return HttpDriver\Guzzle::getAsync($url, $options, $callback);
+        } catch (\Exception $e) {
+            return null;
         }
-        $options = ['timeout' => $timeout];
-        //请求链接
-        $url = $this->buildUrl($appId, $requestData);
-        //生成请求头
-        $headers = $this->buildRequestHeaders($appId, $url);
-        if(!empty($headers)) {
-            $options['headers'] = $headers;
-        }
-        if(is_null($callback)) {
-            return Guzzle::get($url, $options);
-        }
-        return Guzzle::getAsync($url, $options, $callback);
     }
 
     /**
@@ -108,7 +110,7 @@ class Request {
      * @date 2021-02-22
      */
     public function wait() {
-        return Guzzle::wait();
+        return HttpDriver\Guzzle::wait();
     }
 
     /**

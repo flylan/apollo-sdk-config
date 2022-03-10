@@ -1,7 +1,7 @@
 <?php
-namespace ApolloSdk\Config;
+namespace ApolloSdk\Config\Container;
 
-class ConfigsListContainer {
+class ConfigsList {
 
     private $list = [];
 
@@ -12,7 +12,7 @@ class ConfigsListContainer {
      * @date 2022-02-25
      */
     public function add($item = []) {
-        $this->list[] = new ConfigsContainer($item);
+        $this->list[] = new Configs($item);
     }
 
     /**
@@ -26,7 +26,7 @@ class ConfigsListContainer {
     }
 
     /**
-     * 将list转换为映射结构，结构格式为[appId][namespace] => ConfigsContainer
+     * 将list转换为映射结构，结构格式为[appId][namespace] => Configs
      * @return array
      * @author fengzhibin
      * @date 2022-02-25
@@ -34,7 +34,7 @@ class ConfigsListContainer {
     public function toMappingStruct() {
         $res = [];
         $this->each(
-            function(ConfigsContainer $configsObj) use(&$res) {
+            function(Configs $configsObj) use(&$res) {
                 $appId = $configsObj->getAppId();
                 $namespace = $configsObj->getNamespaceName();
                 $res[$appId][$namespace] = $configsObj;
@@ -45,14 +45,14 @@ class ConfigsListContainer {
 
     /**
      * 从list中读取第一个元素
-     * @return ConfigsContainer
+     * @return Configs
      * @author fengzhibin
      * @date 2022-02-25
      */
     public function first() {
         if(!empty($this->list)) {
             $res = reset($this->list);
-            if($res instanceof ConfigsContainer) {
+            if($res instanceof Configs) {
                 return $res;
             }
         }
@@ -69,7 +69,7 @@ class ConfigsListContainer {
     public function each($callback = null) {
         if(!empty($this->list) && is_callable($callback)) {
             foreach($this->list as $configsObj) {
-                if($configsObj instanceof ConfigsContainer) {
+                if($configsObj instanceof Configs) {
                     call_user_func($callback, $configsObj);
                 }
             }
